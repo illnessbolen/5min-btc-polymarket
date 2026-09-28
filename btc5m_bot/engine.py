@@ -507,13 +507,13 @@ class Bot:
     def _slot_log(self, start: int) -> dict[str, Any]:
         if self._slot is None or self._slot["slot"] != start:
             self._close_slot_log()
-            self._slot = {"slot": start, "reasons": Counter(), "last": None, "max_move": 0.0}
+            self._slot = {"slot": start, "reasons": Counter(), "last": None, "max_move": None}
         return self._slot
 
     def _note(self, slot: dict[str, Any], reason: str, decision: Optional[st.Decision] = None) -> None:
         slot["reasons"][reason] += 1
         if decision is not None and decision.move_usd is not None:
-            slot["max_move"] = max(slot["max_move"], abs(decision.move_usd))
+            slot["max_move"] = max(slot["max_move"] or 0.0, abs(decision.move_usd))
         if reason != slot["last"]:
             slot["last"] = reason
             details = " ".join(f"{k}={v}" for k, v in (decision.details if decision else {}).items())
@@ -525,7 +525,8 @@ class Bot:
             return
         outcome = "entered" if slot.get("entered") else "no entry"
         reasons = ", ".join(f"{k} x{v}" for k, v in slot["reasons"].most_common())
-        log.info("slot %s summary: %s; max |BTC move| $%.0f; %s", slot["slot"], outcome, slot["max_move"], reasons)
+        move = "n/a" if slot["max_move"] is None else f"${slot['max_move']:.0f}"
+        log.info("slot %s summary: %s; max |BTC move| %s; %s", slot["slot"], outcome, move, reasons)
 
     def _notify(self, text: str) -> None:
         try:
