@@ -1,0 +1,20 @@
+# Standalone bot container (no external trading repo needed).
+# Paper trading by default; append "--execute" to `command` for live orders.
+#   cp .env.example .env
+#   docker compose -f docker-compose.bot.yml up -d --build
+#   docker compose -f docker-compose.bot.yml logs -f
+#   docker compose -f docker-compose.bot.yml run --rm btc5m-bot report
+services:
+  btc5m-bot:
+    build: .
+    image: btc5m-bot:latest
+    command: ["run", "--profile", "conservative"]
+    env_file:
+      - .env
+    volumes:
+      - btc5m-runtime:/app/runtime
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+volumes:
+  btc5m-runtime:

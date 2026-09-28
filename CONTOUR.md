@@ -18,6 +18,17 @@
 - Optional docker control:
   - `scripts/btc5m_docker.sh`
 
+## Standalone bot path (no external dependency)
+- Bot package (strategy, execution, risk, journal):
+  - `btc5m_bot/` (`python -m btc5m_bot run|check|report|status`)
+- Control entrypoint:
+  - `scripts/btc5m_bot.sh` (`start|stop|status|logs|report|check|halt|resume`)
+- Parameters: `config/btc_5m_profiles.yaml` (same profiles as the skill runner, plus the `bot` section)
+- Auth: `.env` in the repo root (or `BTC5M_ENV_FILE`); template in `.env.example`
+- Runtime: `runtime/bot/{paper,live}/state.json`, `runtime/bot/{paper,live}/trades.jsonl`,
+  logs `runtime/bot/bot_<mode>_<profile>_<UTCSTAMP>.log`
+- Orders go directly to the Polymarket CLOB; this path never calls `pm_live_trade_runner.py`.
+
 ## External dependency boundary
 - Order placement/close engine is delegated to:
   - `<your-workspace>/pm-hl-conservative-plus-repo/src/live/pm_live_trade_runner.py`
@@ -32,6 +43,7 @@
 ## Isolation guidance
 - Keep BTC 5m cron/checkers scoped to this skill naming (`btc5m-*`).
 - Avoid creating generic watchers in unrelated topics/chats.
-- Keep all new BTC 5m automation pointing to canonical runner only.
+- Keep all new BTC 5m automation pointing to one of the two canonical paths (skill runner or standalone bot).
+- Do not run the skill runner and the standalone bot live on the same wallet at the same time.
 - Active completion cron in this contour:
   - `btc5m-completion-autoreport-topic184` (`36d3b9e6-4638-4e93-80f6-abb268ebbe57`)
