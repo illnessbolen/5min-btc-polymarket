@@ -38,7 +38,7 @@ Each 5-minute slot (`btc-updown-5m-<start>`) gets at most one trade:
 | Sizing | $5 stake, capped by `max_notional_usd` and % of balance | `sizing.stake_usd`, `sizing.max_notional_usd`, `sizing.risk_per_trade_pct_equity` |
 | Order | FAK buy, limit = ask + 0.02, never above the max entry price | `execution_safety.entry_slippage` |
 | Stop-loss | sell when the side's mid falls 25% below the entry price | `stop_loss.*` |
-| Micro-hedge | side ≥ 0.95 with ≤ 45 s left (and before the exit): buy $1–2 of the opposite side; a stop-loss sells it, the pre-close exit keeps it to resolution (it has no bids by then and pays out on a last-second reversal) | `hedge.*` |
+| Micro-hedge | side ≥ 0.95 with ≤ 45 s left (and before the exit): buy 3% of the position (max $2) of the opposite side; skipped when that is below the $1 minimum order (with 3%: positions under ~$33). A stop-loss sells it, the pre-close exit keeps it to resolution (it has no bids by then and pays out on a last-second reversal) | `hedge.*` |
 | Exit | sell everything 20 s before the close; `exit_before_sec: 0` holds to resolution | `session_timing.exit_before_sec`, `execution_safety.exit_slippage` |
 | Risk | max trades/day, daily loss limit (unresolved positions count at full cost), pause after 3 consecutive API errors | `sizing.max_trades_per_day`, `sizing.daily_max_loss_pct`, `execution_safety.skip_if_dns_or_api_errors_consecutive`, `bot.error_cooldown_sec` |
 

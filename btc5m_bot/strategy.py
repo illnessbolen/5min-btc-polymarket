@@ -134,10 +134,17 @@ def hedge_due(cfg: BotConfig, seconds_left: float, main_book: Optional[Book]) ->
     return main_book.mark >= h.trigger_side_price_gte - EPS
 
 
-def hedge_notional(cfg: BotConfig, main_cost: float) -> float:
+def hedge_notional(cfg: BotConfig, main_cost: float) -> Optional[float]:
+    """Hedge size: `share_of_main_pct` of the position, capped at the max; None below the minimum order.
+
+    Rounding a small hedge up to the minimum would cost more than the position can earn
+    (seen live: a $1 hedge on a $5 position bought at 0.90 turned a win into -$0.51).
+    """
     h = cfg.hedge
-    amount = main_cost * h.share_of_main_pct / 100.0
-    return floor_to(max(h.notional_usd_min, min(h.notional_usd_max, amount)), 2)
+    amount = round(main_cost * h.share_of_main_pct / 100.0, 6)
+    if amount < max(h.notional_usd_min, cfg.sizing.min_order_usd) - EPS:
+        return None
+    return floor_to(min(h.notional_usd_max, amount), 2)
 
 
 def buy_limit(ask: float, slippage: float, tick: float, cap: float = 1.0) -> float:
