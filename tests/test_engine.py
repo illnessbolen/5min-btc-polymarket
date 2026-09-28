@@ -347,3 +347,20 @@ def test_slot_summary_reports_entries_only_after_a_fill(cfg, tmp_path, caplog):
     assert bot.position is None and bot.last_entry_slot == S
     assert any("stake $0.24 is below the minimum order" in m for m in notes.messages)
     assert "summary: no entry" in caplog.text
+
+
+def test_network_errors_are_logged_without_traceback(cfg, tmp_path, caplog):
+    import requests as rq
+
+    class DownGamma(FakeGamma):
+        def get_market(self, start):
+            raise rq.ConnectionError("gamma unreachable")
+
+    clock = FakeClock(S + 150)
+    bot, notes = make_bot(cfg, tmp_path, clock, base_books(clock), gamma=DownGamma())
+    bot._startup()
+    with caplog.at_level("WARNING"):
+        drive(bot, clock, S + 160)
+    assert "step failed: gamma unreachable" in caplog.text
+    assert "Traceback" not in caplog.text
+    assert any("kill switch" in m for m in notes.messages)

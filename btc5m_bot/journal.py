@@ -136,9 +136,10 @@ class Position:
 
 
 class Journal:
-    def __init__(self, root: Path | str):
+    def __init__(self, root: Path | str, create: bool = True):
         self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
+        if create:
+            self.root.mkdir(parents=True, exist_ok=True)
         self.state_path = self.root / "state.json"
         self.trades_path = self.root / "trades.jsonl"
 

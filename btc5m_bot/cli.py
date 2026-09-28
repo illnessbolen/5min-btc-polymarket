@@ -238,7 +238,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    trades = Journal(_mode_dir(args, args.mode)).load_trades()
+    trades = Journal(_mode_dir(args, args.mode), create=False).load_trades()
     summary = summarize(trades, since=args.since)
     if args.json:
         print(json.dumps(summary, indent=2))
@@ -262,7 +262,7 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    state = Journal(_mode_dir(args, args.mode)).load_state()
+    state = Journal(_mode_dir(args, args.mode), create=False).load_state()
     if not state:
         print(f"no {args.mode} state yet")
         return 0

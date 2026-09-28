@@ -99,6 +99,7 @@ hedges, exits with PnL, kill-switch alerts and daily summaries. With `TELEGRAM_C
 - `runtime/bot/<paper|live>/state.json` — open position, positions awaiting resolution, daily counters (used to resume after a restart)
 - `runtime/bot/<paper|live>/trades.jsonl` — one JSON record per finished trade: legs, fills, entry signal, PnL
 - `python -m btc5m_bot report [--mode live] [--since 2026-09-01]` — trades, win rate and PnL by day
+- delete `runtime/bot/paper/` (with the bot stopped) to reset paper trading to a fresh `--paper-equity` balance
 
 ### Limitations
 - The BTC impulse is measured on Binance spot candles (fallback: Coinbase), while markets resolve on the Chainlink

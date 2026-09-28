@@ -90,3 +90,9 @@ def test_live_run_requires_credentials(tmp_path, monkeypatch):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setattr("btc5m_bot.config.DEFAULT_ENV_FILE", tmp_path / "missing.env")
     assert cli.main(["run", "--runtime-dir", str(tmp_path), "--execute"]) == 2
+
+
+def test_read_only_commands_do_not_create_directories(tmp_path):
+    assert cli.main(["status", "--runtime-dir", str(tmp_path / "rt"), "--mode", "live"]) == 0
+    assert cli.main(["report", "--runtime-dir", str(tmp_path / "rt"), "--mode", "live"]) == 0
+    assert not (tmp_path / "rt").exists()

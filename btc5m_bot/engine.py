@@ -10,6 +10,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+import requests
+
 from . import strategy as st
 from .config import BotConfig, describe
 from .exchange import DUST_SHARES, Fill, OrderUncertain
@@ -33,6 +35,13 @@ MAX_HEDGE_ORDERS = 2
 
 def _money(x: Optional[float]) -> str:
     return "n/a" if x is None else f"${x:,.2f}"
+
+
+def _is_transient(err: Exception) -> bool:
+    """Network/API failures that are expected now and then and need no traceback."""
+    return isinstance(err, (requests.RequestException, PriceFeedError, ConnectionError, TimeoutError)) or (
+        type(err).__name__ == "PolyApiException"
+    )
 
 
 class Bot:
@@ -141,11 +150,14 @@ class Bot:
             self.risk.on_success()
             return delay
         except Exception as e:
-            log.exception("step failed: %s", e)
+            if _is_transient(e):
+                log.warning("step failed: %s", str(e)[:300])
+            else:
+                log.exception("step failed: %s", e)
             if self.risk.on_error(now):
                 r = self.cfg.runtime
                 self._notify(f"kill switch: {r.max_consecutive_errors} consecutive errors, "
-                             f"new entries paused for {r.error_cooldown_sec:.0f}s (last: {e})")
+                             f"new entries paused for {r.error_cooldown_sec:.0f}s (last: {str(e)[:200]})")
             return self.cfg.runtime.poll_sec
         finally:
             self._save_state()
