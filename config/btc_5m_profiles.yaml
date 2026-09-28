@@ -56,7 +56,7 @@ profiles:
       trigger_side_price_gte: 0.95
       trigger_seconds_left_lte: 45
       hedge_share_of_main_pct: 3
-      hedge_notional_usd_min: 1
+      hedge_notional_usd_min: 1  # bot: no hedge when hedge_share_of_main_pct of the position is below this
       hedge_notional_usd_max: 2
     stop_loss:
       enabled: true
@@ -81,7 +81,7 @@ profiles:
       trigger_side_price_gte: 0.93
       trigger_seconds_left_lte: 50
       hedge_share_of_main_pct: 5
-      hedge_notional_usd_min: 1
+      hedge_notional_usd_min: 1  # bot: no hedge when hedge_share_of_main_pct of the position is below this
       hedge_notional_usd_max: 3
     stop_loss:
       enabled: true

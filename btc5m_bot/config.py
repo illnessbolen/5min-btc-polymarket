@@ -254,7 +254,8 @@ def describe(cfg: BotConfig) -> str:
     e, s, h, x = cfg.entry, cfg.sizing, cfg.hedge, cfg.exit
     impulse = f"|BTC move| >= ${e.btc_move_usd_min:g}" if e.btc_move_usd_min > 0 else "impulse filter off"
     hedge = (
-        f"hedge {h.notional_usd_min:g}-{h.notional_usd_max:g}$ when side >= {h.trigger_side_price_gte:g} "
+        f"hedge {h.share_of_main_pct:g}% of the position (max ${h.notional_usd_max:g}, skipped below "
+        f"${max(h.notional_usd_min, s.min_order_usd):g}) when side >= {h.trigger_side_price_gte:g} "
         f"and <= {h.trigger_seconds_left_lte:g}s left"
         if h.enabled else "hedge off"
     )

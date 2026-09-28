@@ -59,7 +59,8 @@ def trades(tmp_path):
     return Journal(tmp_path / "paper").load_trades()
 
 
-def test_full_cycle_entry_hedge_and_pre_close_exit(cfg, tmp_path):
+def test_full_cycle_entry_hedge_and_pre_close_exit(cfg_factory, tmp_path):
+    cfg = cfg_factory(hedge={"share_of_main_pct": 20.0})  # $1 hedge on the $5 position
     clock = FakeClock(S + 100)  # 200s left: before the entry window
     books = base_books(clock)
     books.set(UP_T, S + 200, [(0.90, 500)], [(0.91, 500)])
@@ -97,7 +98,8 @@ def test_full_cycle_entry_hedge_and_pre_close_exit(cfg, tmp_path):
     assert any(m.startswith("FLAT UP") for m in notes.messages)  # +1.00 on the main, -1.00 on the hedge
 
 
-def test_hedge_pays_off_on_a_last_second_reversal(cfg, tmp_path):
+def test_hedge_pays_off_on_a_last_second_reversal(cfg_factory, tmp_path):
+    cfg = cfg_factory(hedge={"share_of_main_pct": 20.0})  # $1 hedge on the $5 position
     clock = FakeClock(S + 140)
     books = base_books(clock)
     books.set(UP_T, S + 258, [(0.96, 500)], [(0.97, 500)])
@@ -113,7 +115,8 @@ def test_hedge_pays_off_on_a_last_second_reversal(cfg, tmp_path):
     assert t["pnl"] == pytest.approx(6.25 * 0.96 - 5.0 + 25 * 1.0 - 1.0)
 
 
-def test_stop_loss_sells_the_hedge_too(cfg, tmp_path):
+def test_stop_loss_sells_the_hedge_too(cfg_factory, tmp_path):
+    cfg = cfg_factory(hedge={"share_of_main_pct": 20.0})  # $1 hedge on the $5 position
     clock = FakeClock(S + 140)
     books = base_books(clock)
     books.set(UP_T, S + 256, [(0.96, 500)], [(0.97, 500)])
@@ -403,3 +406,20 @@ def test_network_errors_are_logged_without_traceback(cfg, tmp_path, caplog):
     assert "step failed: gamma unreachable" in caplog.text
     assert "Traceback" not in caplog.text
     assert any("kill switch" in m for m in notes.messages)
+
+
+def test_small_position_skips_the_hedge(cfg, tmp_path, caplog):
+    # Default conservative profile: 3% of a $5 position is $0.15, below the $1 minimum order.
+    clock = FakeClock(S + 140)
+    books = base_books(clock)
+    books.set(UP_T, S + 258, [(0.96, 500)], [(0.97, 500)])
+    books.set(DOWN_T, S + 258, [(0.03, 500)], [(0.04, 500)])
+    bot, notes = make_bot(cfg, tmp_path, clock, books)
+    with caplog.at_level("INFO"):
+        bot._startup()
+        drive(bot, clock, S + 300)
+    assert "it will be skipped" in caplog.text and "hedge skipped" in caplog.text
+    assert not any(m.startswith("HEDGE") for m in notes.messages)
+    [t] = trades(tmp_path)
+    assert t["hedged"] is False and not bot.pending
+    assert t["pnl"] == pytest.approx(6.25 * 0.96 - 5.0)

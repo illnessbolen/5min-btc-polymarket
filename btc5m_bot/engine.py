@@ -111,6 +111,10 @@ class Bot:
         equity = self._refresh_equity(force=True)
         self.risk.roll_day(self.clock(), equity)
         log.info("starting %s bot, %s", self.mode, describe(self.cfg))
+        stake = st.compute_stake(self.cfg, None)
+        if self.cfg.hedge.enabled and st.hedge_notional(self.cfg, stake) is None:
+            log.info("hedge is enabled but %g%% of the %s stake is below the minimum order: it will be skipped",
+                     self.cfg.hedge.share_of_main_pct, _money(stake))
         extra = ""
         if self.position:
             extra = f"; resuming open position {self.position.slug} {self.position.main.side}"
@@ -326,9 +330,14 @@ class Bot:
 
     def _open_hedge(self, pos: Position, left: float) -> None:
         pos.hedge_attempts += 1
+        amount = st.hedge_notional(self.cfg, pos.main.cost)
+        if amount is None:
+            pos.hedge_attempts = MAX_HEDGE_ORDERS
+            log.info("hedge skipped: %g%% of the %s position is below the minimum order",
+                     self.cfg.hedge.share_of_main_pct, _money(pos.main.cost))
+            return
         side = opposite(pos.main.side)
         token = pos.token_for(side)
-        amount = st.hedge_notional(self.cfg, pos.main.cost)
         book = self.ex.get_book(token)
         if book.best_ask is None:
             log.info("hedge skipped: no asks on %s", side)

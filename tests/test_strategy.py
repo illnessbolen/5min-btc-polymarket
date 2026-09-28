@@ -126,8 +126,11 @@ def test_hedge_due_and_size(cfg):
     assert not st.hedge_due(cfg, 50.0, strong)  # too early
     assert not st.hedge_due(cfg, 20.0, strong)  # already exiting
     assert not st.hedge_due(cfg, 40.0, weak)
-    assert st.hedge_notional(cfg, 5.0) == 1.0  # 3% of 5 -> clamped to min
-    assert st.hedge_notional(cfg, 200.0) == 2.0  # clamped to max
+    assert st.hedge_notional(cfg, 5.0) is None  # 3% of $5 = $0.15: below the $1 minimum, skipped
+    assert st.hedge_notional(cfg, 33.33) is None
+    assert st.hedge_notional(cfg, 100 / 3) == 1.0
+    assert st.hedge_notional(cfg, 40.0) == 1.2
+    assert st.hedge_notional(cfg, 200.0) == 2.0  # capped at the max
 
 
 def test_price_ladders():
