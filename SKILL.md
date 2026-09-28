@@ -12,6 +12,18 @@ description: Run and monitor BTC 5-minute Up/Down trading on Polymarket using mo
 - Skill control entrypoint: `scripts/btc5m_ctl.sh`
 - Compatibility wrapper (deprecated): `scripts/run_btc_5m_threshold_test.py`
 
+## Standalone Bot (no external repo)
+- Package: `btc5m_bot/` (`python -m btc5m_bot run|check|report|status`)
+- Control entrypoint: `scripts/btc5m_bot.sh start|stop|status|logs|report|check|halt|resume`
+- Paper trading unless `--execute`; credentials from `.env` (see `.env.example`).
+- Implements the full strategy below (entry window, BTC impulse, skew confirmation, stop-loss, micro-hedge,
+  pre-close exit) plus daily limits, an API-error kill switch and optional Telegram notifications.
+
+Hot commands:
+- `btc5m bot conservative start` -> `scripts/btc5m_bot.sh start --profile conservative` (paper)
+- `btc5m bot conservative live` -> `scripts/btc5m_bot.sh start --profile conservative --execute`
+- `btc5m bot status|report|stop|halt|resume` -> `scripts/btc5m_bot.sh <command>`
+
 ## Strategy Alignment
 Use this skill when the operator wants to execute a BTC 5m momentum strategy:
 - Entry focus near event close (around 2 minutes left).
@@ -21,7 +33,7 @@ Use this skill when the operator wants to execute a BTC 5m momentum strategy:
 - Optional small opposite hedge when skew becomes extreme.
 
 ## Operational Rules
-- Default is dry-run unless `--execute` is set.
+- Default is dry-run (paper trading for the standalone bot) unless `--execute` is set.
 - Use controlled stake sizing (`--stake-usd`, profile caps).
 - If both UP and DOWN satisfy threshold logic, choose the stronger side.
 - Keep stop-loss and timing guards enabled in profile config.

@@ -76,7 +76,7 @@ class Bot:
 
         self._markets: dict[int, Market] = {}
         self._equity: Optional[float] = None
-        self._equity_at = 0.0
+        self._equity_at = float("-inf")  # last balance request (successful or not)
         self._slot: Optional[dict[str, Any]] = None
         self._deadline: Optional[float] = None
         self._notices: dict[str, float] = {}
@@ -129,7 +129,10 @@ class Bot:
         try:
             self._roll_day(now)
             if self.pending:
-                self._check_pending(now)
+                try:
+                    self._check_pending(now)
+                except Exception as e:  # must never block managing the open position
+                    log.warning("resolution check failed: %s", e)
             if self.position is not None:
                 self._manage_position(now)
                 delay = self.cfg.runtime.poll_sec
@@ -209,7 +212,7 @@ class Bot:
         return market
 
     def _enter(self, market: Market, decision: st.Decision, slot: dict[str, Any]) -> None:
-        equity = self._refresh_equity(force=True)
+        equity = self._refresh_equity()
         stake = st.compute_stake(self.cfg, equity)
         if stake < self.cfg.sizing.min_order_usd:
             self._note(slot, "stake_below_minimum")
@@ -244,6 +247,7 @@ class Bot:
 
         now = self.clock()
         self.last_entry_slot = market.start_ts
+        slot["entered"] = True
         self.risk.on_trade_opened()
         self.position = Position(
             trade_id=f"{market.start_ts}-{uuid.uuid4().hex[:6]}",
@@ -268,7 +272,7 @@ class Bot:
             ),
             signal={**decision.details, "move_usd": decision.move_usd, "limit_price": decision.limit_price, "stake": stake},
         )
-        self._equity = None
+        self._invalidate_equity()
         self._save_state()
         move = f", BTC {decision.move_usd:+.0f}$" if decision.move_usd is not None else ""
         self._notify(
@@ -447,7 +451,7 @@ class Bot:
                     self.ex.settle(leg.token_id, payout)
         self.journal.append_trade(pos.record(winner, pnl, self.clock()))
         self.risk.on_trade_closed(pnl)
-        self._equity = None
+        self._invalidate_equity()
         self._save_state()
         label = "n/a" if pnl is None else ("WIN" if pnl > 0 else "LOSS" if pnl < 0 else "FLAT")
         pnl_text = "unknown" if pnl is None else f"{pnl:+.2f} USDC"
@@ -467,19 +471,23 @@ class Bot:
         if state.day == utc_day(now) and state.day_start_equity is not None:
             return
         prev_day, prev_trades, prev_pnl = state.day, state.trades_today, state.realized_pnl_today
-        if self.risk.roll_day(now, self._refresh_equity(force=True)) and prev_day:
+        new_day = state.day != utc_day(now)
+        if self.risk.roll_day(now, self._refresh_equity(force=new_day)) and prev_day:
             self._notify(f"day {prev_day} closed: {prev_trades} trades, PnL {prev_pnl:+.2f} USDC")
 
     def _refresh_equity(self, force: bool = False) -> Optional[float]:
         now = self.clock()
-        if not force and self._equity is not None and now - self._equity_at < EQUITY_TTL_SEC:
+        if not force and now - self._equity_at < EQUITY_TTL_SEC:
             return self._equity
+        self._equity_at = now  # also throttles retries while the balance endpoint fails
         try:
             self._equity = float(self.ex.get_usdc_balance())
-            self._equity_at = now
         except Exception as e:
             log.warning("balance request failed: %s", e)
         return self._equity
+
+    def _invalidate_equity(self) -> None:
+        self._equity_at = float("-inf")
 
     def _idle(self, seconds: float) -> float:
         return max(0.2, min(self.cfg.runtime.idle_poll_sec, seconds))
@@ -503,7 +511,7 @@ class Bot:
         slot, self._slot = self._slot, None
         if slot is None:
             return
-        outcome = "entered" if self.last_entry_slot == slot["slot"] else "no entry"
+        outcome = "entered" if slot.get("entered") else "no entry"
         reasons = ", ".join(f"{k} x{v}" for k, v in slot["reasons"].most_common())
         log.info("slot %s summary: %s; max |BTC move| $%.0f; %s", slot["slot"], outcome, slot["max_move"], reasons)
 

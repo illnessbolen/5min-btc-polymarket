@@ -335,8 +335,8 @@ class PaperExchange:
         if sold <= 0:
             return Fill(False, 0.0, 0.0, status="unmatched", error="no bids at or above the limit price")
         self.positions[token_id] = self.positions.get(token_id, 0.0) - sold
-        if self.positions[token_id] <= EPS:
-            del self.positions[token_id]
+        if self.positions[token_id] < DUST_SHARES:
+            del self.positions[token_id]  # unsellable dust
         self.cash += proceeds
         return Fill(True, sold, proceeds, order_id=self._order_id(), status="matched")
 
