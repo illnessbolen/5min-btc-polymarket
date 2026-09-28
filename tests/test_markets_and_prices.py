@@ -121,7 +121,9 @@ def test_coinbase_snapshot_caches_open():
     src = CoinbaseSource(session)
     assert src.snapshot(START).move == pytest.approx(-79.5)
     src.snapshot(START)
-    assert sum("/candles" in url for url, _ in session.calls) == 1
+    candle_calls = [params for url, params in session.calls if "/candles" in url]
+    assert len(candle_calls) == 1
+    assert candle_calls[0]["start"] == "2027-01-15T08:00:00Z"  # "+00:00" makes Coinbase return []
 
 
 def test_price_feed_falls_back_between_sources():

@@ -100,7 +100,8 @@ class CoinbaseSource:
             return self._open_cache[slot_start]
 
         def iso(ts: int) -> str:
-            return dt.datetime.fromtimestamp(ts, dt.timezone.utc).isoformat()
+            # Coinbase returns an empty list for "+00:00" offsets; it needs the "Z" form.
+            return dt.datetime.fromtimestamp(ts, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         r = self.session.get(
             f"{self.base}/products/{self.product}/candles",
