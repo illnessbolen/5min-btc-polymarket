@@ -85,6 +85,10 @@ def test_impulse_filter_disabled_follows_favoured_side(cfg_factory):
     cfg = cfg_factory(entry={"btc_move_usd_min": 0.0})
     d = decide(cfg, move=None, up_bid=0.25, up_ask=0.27, down_bid=0.73, down_ask=0.75)
     assert d.enter and d.side == DOWN
+    # A lone far-away ask must not make a side look favoured.
+    d = decide(cfg, move=None, up_bid=0.74, up_ask=0.75, down_bid=0.24, down_ask=0.89)
+    assert d.enter and d.side == UP
+    assert decide(cfg, move=None, up_bid=None, up_ask=None, down_bid=None, down_ask=None).reason == "no_quotes"
 
 
 def test_compute_stake_caps(cfg_factory):

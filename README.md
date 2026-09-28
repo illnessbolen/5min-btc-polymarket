@@ -38,7 +38,7 @@ Each 5-minute slot (`btc-updown-5m-<start>`) gets at most one trade:
 | Sizing | $5 stake, capped by `max_notional_usd` and % of balance | `sizing.stake_usd`, `sizing.max_notional_usd`, `sizing.risk_per_trade_pct_equity` |
 | Order | FAK buy, limit = ask + 0.02, never above the max entry price | `execution_safety.entry_slippage` |
 | Stop-loss | sell when the side's mid falls 25% below the entry price | `stop_loss.*` |
-| Micro-hedge | side ≥ 0.95 with ≤ 45 s left (and before the exit): buy $1–2 of the opposite side; it is sold together with the main position | `hedge.*` |
+| Micro-hedge | side ≥ 0.95 with ≤ 45 s left (and before the exit): buy $1–2 of the opposite side; a stop-loss sells it, the pre-close exit keeps it to resolution (it has no bids by then and pays out on a last-second reversal) | `hedge.*` |
 | Exit | sell everything 20 s before the close; `exit_before_sec: 0` holds to resolution | `session_timing.exit_before_sec`, `execution_safety.exit_slippage` |
 | Risk | max trades/day, daily loss limit (unresolved positions count at full cost), pause after 3 consecutive API errors | `sizing.max_trades_per_day`, `sizing.daily_max_loss_pct`, `execution_safety.skip_if_dns_or_api_errors_consecutive`, `bot.error_cooldown_sec` |
 
@@ -102,9 +102,12 @@ hedges, exits with PnL, kill-switch alerts and daily summaries. With `TELEGRAM_C
 - delete `runtime/bot/paper/` (with the bot stopped) to reset paper trading to a fresh `--paper-equity` balance
 
 ### Limitations
-- The BTC impulse is measured on Binance spot candles (fallback: Coinbase), while markets resolve on the Chainlink
-  BTC/USD stream. The filter works on tens of dollars, so the basis between venues matters only for moves right at the threshold.
-- PnL is the cash flow reported by order responses; paper mode ignores taker fees.
+- The BTC impulse is measured on Binance spot candles (the `data-api.binance.vision` mirror is used where
+  `api.binance.com` is geo-blocked; fallback: Coinbase). Markets resolve on the Chainlink BTC/USD **60-second TWAP**
+  stream (the average of the last 60 s against the price at the start of the slot). Venues can disagree by ~$10 on the
+  move itself, so a move close to the threshold may or may not trigger an entry.
+- BTC 5m markets charge taker fees (Gamma `feeSchedule`: `crypto_fees_v2`, rate 0.07, taker only). Paper mode does not
+  model them, and live PnL is the cash flow reported by order responses.
 - Make sure trading on Polymarket is allowed where you live.
 
 ### Tests

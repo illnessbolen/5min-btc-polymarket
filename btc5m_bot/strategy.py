@@ -69,12 +69,13 @@ def evaluate_entry(
             return Decision(SKIP, "move_too_small", move_usd=move, details=info)
         side = UP if move > 0 else DOWN
     else:
-        # Impulse filter disabled: follow the side the market already favours.
-        up_ask = up.best_ask if up else None
-        down_ask = down.best_ask if down else None
-        if up_ask is None and down_ask is None:
-            return Decision(SKIP, "no_ask", move_usd=move, details=info)
-        side = UP if (up_ask or 0) >= (down_ask or 0) else DOWN
+        # Impulse filter disabled: follow the side the market already favours. Compare marks, not asks:
+        # a thin book can show a far-away best ask (seen live: bid 0.47 / ask 0.89).
+        up_mark = up.mark if up else None
+        down_mark = down.mark if down else None
+        if up_mark is None and down_mark is None:
+            return Decision(SKIP, "no_quotes", move_usd=move, details=info)
+        side = UP if (up_mark or 0) >= (down_mark or 0) else DOWN
 
     book = up if side == UP else down
     info["side"] = side

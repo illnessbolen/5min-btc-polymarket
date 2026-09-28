@@ -65,7 +65,8 @@ def test_full_cycle_entry_hedge_and_pre_close_exit(cfg, tmp_path):
     books.set(UP_T, S + 200, [(0.90, 500)], [(0.91, 500)])
     books.set(UP_T, S + 258, [(0.96, 500)], [(0.97, 500)])  # mark 0.965 -> hedge after 45s left
     books.set(DOWN_T, S + 258, [(0.03, 500)], [(0.04, 500)])
-    bot, notes = make_bot(cfg, tmp_path, clock, books)
+    gamma = FakeGamma()
+    bot, notes = make_bot(cfg, tmp_path, clock, books, gamma=gamma)
     bot._startup()
 
     drive(bot, clock, S + 151)
@@ -76,20 +77,58 @@ def test_full_cycle_entry_hedge_and_pre_close_exit(cfg, tmp_path):
     assert pos.main.shares == pytest.approx(5.0 / 0.80)
 
     drive(bot, clock, S + 300)
-    assert bot.position is None and not bot.pending
+    # The main leg is sold before the close; the hedge rides to resolution.
+    assert bot.position is None and len(bot.pending) == 1
+    pos = bot.pending[0]
+    assert pos.close_reason == "time_exit" and pos.main.is_flat
+    assert pos.hedge.side == "DOWN" and pos.hedge.cost == pytest.approx(1.0) and pos.hedge.exits == []
+    assert pos.main.proceeds == pytest.approx(6.25 * 0.96)
+
+    gamma.resolutions[slot_slug(S)] = UP
+    drive(bot, clock, S + 360)
     [t] = trades(tmp_path)
-    assert t["close_reason"] == "time_exit" and t["hedged"] is True
-    main, hedge = t["legs"]
-    assert hedge["side"] == "DOWN" and hedge["cost"] == pytest.approx(1.0)
-    assert main["proceeds"] == pytest.approx(6.25 * 0.96)
-    assert hedge["proceeds"] == pytest.approx(25 * 0.03)
-    assert t["pnl"] == pytest.approx(6.25 * 0.96 + 0.75 - 6.0)
+    assert t["close_reason"] == "time_exit" and t["hedged"] is True and t["winner"] == UP
+    assert t["pnl"] == pytest.approx(6.25 * 0.96 - 5.0 - 1.0)
     assert bot.ex.positions == {}
     assert bot.ex.cash == pytest.approx(100 + t["pnl"])
     assert bot.risk.state.trades_today == 1
     assert any(m.startswith("ENTRY UP") for m in notes.messages)
     assert any(m.startswith("HEDGE DOWN") for m in notes.messages)
-    assert any(m.startswith("WIN UP") for m in notes.messages)
+    assert any(m.startswith("FLAT UP") for m in notes.messages)  # +1.00 on the main, -1.00 on the hedge
+
+
+def test_hedge_pays_off_on_a_last_second_reversal(cfg, tmp_path):
+    clock = FakeClock(S + 140)
+    books = base_books(clock)
+    books.set(UP_T, S + 258, [(0.96, 500)], [(0.97, 500)])
+    books.set(DOWN_T, S + 258, [], [(0.04, 500)])  # nobody bids for the hedge side near the close
+    gamma = FakeGamma()
+    bot, _ = make_bot(cfg, tmp_path, clock, books, gamma=gamma)
+    bot._startup()
+    drive(bot, clock, S + 300)
+    gamma.resolutions[slot_slug(S)] = "DOWN"
+    drive(bot, clock, S + 360)
+    [t] = trades(tmp_path)
+    assert t["winner"] == "DOWN"
+    assert t["pnl"] == pytest.approx(6.25 * 0.96 - 5.0 + 25 * 1.0 - 1.0)
+
+
+def test_stop_loss_sells_the_hedge_too(cfg, tmp_path):
+    clock = FakeClock(S + 140)
+    books = base_books(clock)
+    books.set(UP_T, S + 256, [(0.96, 500)], [(0.97, 500)])
+    books.set(DOWN_T, S + 256, [(0.03, 500)], [(0.04, 500)])
+    books.set(UP_T, S + 265, [(0.40, 500)], [(0.42, 500)])  # sharp reversal after the hedge
+    books.set(DOWN_T, S + 265, [(0.58, 500)], [(0.60, 500)])
+    bot, _ = make_bot(cfg, tmp_path, clock, books)
+    bot._startup()
+    drive(bot, clock, S + 300)
+    [t] = trades(tmp_path)
+    assert t["close_reason"] == "stop_loss" and not bot.pending
+    main, hedge = t["legs"]
+    assert main["proceeds"] == pytest.approx(6.25 * 0.40)
+    assert hedge["proceeds"] == pytest.approx(25 * 0.58)
+    assert t["pnl"] == pytest.approx(6.25 * 0.40 + 25 * 0.58 - 6.0)
 
 
 def test_one_entry_per_slot_and_next_slot_trades_again(cfg, tmp_path):

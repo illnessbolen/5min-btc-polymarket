@@ -361,7 +361,12 @@ class Bot:
     def _close(self, pos: Position, reason: str) -> None:
         pos.close_reason = pos.close_reason or reason
         log.info("closing %s (%s)", pos.trade_id, reason)
-        for leg in pos.legs():
+        legs = pos.legs()
+        if reason == "time_exit":
+            # Near the close the hedge is worth cents and usually has no bids; held to resolution it
+            # still pays out if the price reverses in the last seconds, so only the main leg is sold.
+            legs = [pos.main]
+        for leg in legs:
             if not leg.is_flat:
                 self._exit_leg(pos, leg)
         if pos.is_flat:
@@ -376,6 +381,7 @@ class Bot:
         reads = 0  # balance reads; refresh the exchange cache after the first one
         sells = 0  # sell orders sent; drives the widening price ladder
         zero_reads = 0
+        no_bid_logged = False
         uncertain: Optional[tuple[float, float]] = None  # (qty, min_price) of a sell with unknown outcome
         while not leg.is_flat and self.clock() < deadline:
             fill = None
@@ -405,7 +411,9 @@ class Bot:
                 qty = min(leg.remaining, balance)
                 book = self.ex.get_book(leg.token_id)
                 if book.best_bid is None:
-                    log.info("no bids for %s leg, retrying", leg.role)
+                    if not no_bid_logged:
+                        log.info("no bids for the %s leg, retrying until the close", leg.role)
+                        no_bid_logged = True
                 else:
                     min_price = st.sell_limit(book.best_bid, sells, self.cfg.exit.slippage, book.tick_size)
                     sells += 1

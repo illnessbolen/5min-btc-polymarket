@@ -52,10 +52,11 @@ class BinanceSource:
         self.symbol = symbol
         self.timeout = timeout
         self.clock = clock
+        self._preferred = self.bases[0]  # last base that answered (api.binance.com is geo-blocked in some regions)
 
     def snapshot(self, slot_start: int) -> BtcSnapshot:
         errors = []
-        for base in self.bases:
+        for base in sorted(self.bases, key=lambda b: b != self._preferred):
             try:
                 r = self.session.get(
                     f"{base}/api/v3/klines",
@@ -69,7 +70,9 @@ class BinanceSource:
                 row = rows[0]
                 if int(row[0]) != slot_start * 1000:
                     raise PriceFeedError(f"candle {row[0]} does not start at slot {slot_start * 1000}")
-                return BtcSnapshot(self.name, slot_start, float(row[1]), float(row[4]), self.clock())
+                snap = BtcSnapshot(self.name, slot_start, float(row[1]), float(row[4]), self.clock())
+                self._preferred = base
+                return snap
             except (requests.RequestException, ValueError, TypeError, IndexError, PriceFeedError) as e:
                 errors.append(f"{base}: {e}")
         raise PriceFeedError("binance: " + "; ".join(errors))

@@ -106,8 +106,12 @@ def test_binance_snapshot_and_mirror_fallback():
         "api.binance.com": FakeResponse({"code": 0}, status=451),
         "data-api.binance.vision": [kline(START * 1000, 60000.5, 60090.25)],
     })
-    snap = BinanceSource(session, clock=lambda: 1.0).snapshot(START)
+    src = BinanceSource(session, clock=lambda: 1.0)
+    snap = src.snapshot(START)
     assert (snap.open_price, snap.price, snap.move) == (60000.5, 60090.25, 89.75)
+    session.calls.clear()
+    src.snapshot(START)  # the mirror that answered is tried first from now on
+    assert len(session.calls) == 1 and "binance.vision" in session.calls[0][0]
     wrong_candle = FakeSession({"binance": [kline((START - 300) * 1000, 1, 2)]})
     with pytest.raises(PriceFeedError, match="does not start"):
         BinanceSource(wrong_candle).snapshot(START)
